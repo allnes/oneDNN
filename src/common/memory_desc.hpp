@@ -135,6 +135,7 @@ struct rnn_packed_desc_t {
     size_t size;
 };
 
+#if 0
 struct sparse_desc_t {
     static constexpr int max_metadata_types = 2;
     // Sparse encoding.
@@ -145,6 +146,33 @@ struct sparse_desc_t {
     // - CSR: 0th - index data type
     //        1st - pointer data type
     dnnl_data_type_t metadata_types[max_metadata_types];
+}
+#endif
+
+struct sparse_desc_t {
+    /// Specifies what encoding is used.
+    dnnl_sparse_encoding_t encoding;
+    /// Order of dimensions. E.g. for CSR it's [0, 1], for CSC [1, 0].
+    dnnl_dims_t dims_order;
+    /// Number of non-zero entries.
+    dnnl_dim_t nnze;
+    /// Metadata types. Each encoding defines how to interpret these.
+    dnnl_data_type_t metadata_types[DNNL_MAX_METADATA_TYPES];
+    /// Dimensions of an entry. For example: 1x1 for CSR/CSC or MxN for
+    /// BCSR/BCSC.
+    dnnl_dim_t entry_dims[2];
+
+    /// Section that describes sparsity pattern.
+    ///
+    /// Number of dimensions of a structure block. When ndims is 0 then sparsity
+    /// pattern is considered unstructured.
+    int structure_ndims;
+    /// Dimensions of a structure block.
+    dnnl_dim_t structure_dims[2];
+    /// Number of non-zero elements per-dimension.
+    dnnl_dim_t structure_nnz[2];
+    /// Descriptor for blocked bitmask - opaque.
+    blocking_desc_t packed_desc;
 };
 
 // Description of extra information stored in memory

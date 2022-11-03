@@ -110,6 +110,7 @@ status_t memory_desc_init_by_strides(memory_desc_t &memory_desc, int ndims,
     return success;
 }
 
+#if 0
 status_t memory_desc_init_by_csr_encoding(memory_desc_t &memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, dim_t nnz,
         data_type_t indices_dt, data_type_t pointers_dt) {
@@ -140,6 +141,7 @@ status_t memory_desc_init_by_csr_encoding(memory_desc_t &memory_desc, int ndims,
 
     return success;
 }
+#endif
 
 status_t memory_desc_init_submemory(memory_desc_t &memory_desc,
         const memory_desc_t &parent_memory_desc, const dims_t dims,
@@ -534,6 +536,7 @@ status_t dnnl_memory_desc_create_with_strides(memory_desc_t **memory_desc,
     return success;
 }
 
+#if 0
 status_t dnnl_memory_desc_create_with_csr_encoding(memory_desc_t **memory_desc,
         int ndims, const dims_t dims, data_type_t data_type, dim_t nnz,
         data_type_t indices_dt, data_type_t pointers_dt) {
@@ -546,6 +549,7 @@ status_t dnnl_memory_desc_create_with_csr_encoding(memory_desc_t **memory_desc,
     (*memory_desc) = md.release();
     return success;
 }
+#endif
 
 status_t dnnl_memory_desc_create_submemory(memory_desc_t **memory_desc,
         const memory_desc_t *parent_memory_desc, const dims_t dims,
@@ -642,6 +646,10 @@ status_t dnnl_memory_desc_query(
         case query::inner_idxs:
             if (!is_blocked) return status::invalid_arguments;
             *(const dims_t **)result = &md->format_desc.blocking.inner_idxs;
+            break;
+        case query::sparse_encoding:
+            if (md->format_kind != format_kind::sparse) return status::invalid_arguments;
+            *(const dnnl_sparse_encoding_t **)result = &md->format_desc.sparse_desc.encoding;
             break;
         default: return status::unimplemented;
     }

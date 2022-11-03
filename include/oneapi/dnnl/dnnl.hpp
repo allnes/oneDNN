@@ -892,6 +892,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// Format kind for sparse tensors.
         sparse = dnnl_format_kind_sparse,
 #endif
+        sparsed = dnnl_format_sparse,
         /// A special format kind that indicates that tensor format is opaque.
         opaque = dnnl_format_kind_opaque,
     };
@@ -2443,6 +2444,29 @@ struct memory : public handle<dnnl_memory_t> {
     /// A memory descriptor.
     struct desc : public handle<dnnl_memory_desc_t> {
         using handle<dnnl_memory_desc_t>::handle;
+        struct sparse_desc {
+            sparse_desc(dnnl_sparse_encoding_t encoding, const dims &dims_order,
+                    dim nnze, const std::vector<data_type> &metadata_types,
+                    const dims &entry_dims, const dims &structure_dims,
+                    const dims &structure_nnz, bool allow_empty = false) {
+                std::vector<dnnl_data_type_t> c_metadata_types(
+                        metadata_types.size());
+                for (size_t i = 0; i < c_metadata_types.size(); i++) {
+                    c_metadata_types[i] = convert_to_c(metadata_types[i]);
+                }
+                // TODO: check structure_dims.size() == structure_nnz.size();
+                dnnl_status_t status = dnnl_sparse_desc_init(&data, encoding,
+                        (int)dims_order.size(), dims_order.data(), nnze,
+                        (int)c_metadata_types.size(), c_metadata_types.data(),
+                        (int)entry_dims.size(), entry_dims.data(),
+                        (int)structure_dims.size(), structure_dims.data(),
+                        structure_nnz.data());
+                if (!allow_empty)
+                    error::wrap_c_api(
+                            status, "could not construct a sparse descriptor");
+            }
+            dnnl_sparse_desc_t data;
+        };
 
         friend struct memory;
 
@@ -2556,6 +2580,55 @@ struct memory : public handle<dnnl_memory_t> {
         ///
         /// @param md The C API memory descriptor.
         desc(dnnl_memory_desc_t md) : handle<dnnl_memory_desc_t>(md) {}
+
+        /// Constructor to create a sparse memory descriptor.
+        desc(const dims &adims, data_type adata_type,
+                const sparse_desc &sparse_desc, bool allow_empty = false) {
+            dnnl_status_t status = dnnl_memory_desc_init_by_sparse_desc(get(),
+                    (int)adims.size(), adims.data(), convert_to_c(adata_type),
+                    &sparse_desc.data);
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not construct a memory descriptor for the given "
+                        "sparse descriptor");
+        }
+
+        /// Function for creating CSR sparse desc with unstructured sparsity.
+        static sparse_desc csr(dim nnze, data_type index_type,
+                data_type pointer_type, bool allow_empty = false) {
+            return sparse_desc(dnnl_sparse_encoding_csr, {0, 1}, nnze,
+                    {index_type, pointer_type}, {}, {}, {}, allow_empty);
+        }
+
+        /// Function for creating CSC sparse desc with unstructured sparsity.
+        static sparse_desc csc(dim nnze, data_type index_type,
+                data_type pointer_type, bool allow_empty = false) {
+            return sparse_desc(dnnl_sparse_encoding_csc, {1, 0}, nnze,
+                    {index_type, pointer_type}, {}, {}, {}, allow_empty);
+        }
+
+        /// Function for creating BCSR sparse desc with unstructured sparsity.
+        static sparse_desc bcsr(dim nnze, data_type index_type,
+                data_type pointer_type, const dims &block_dims,
+                bool allow_empty = false) {
+            return sparse_desc(dnnl_sparse_encoding_bcsr, {0, 1}, nnze,
+                    {index_type, pointer_type}, block_dims, {}, {},
+                    allow_empty);
+        }
+
+        /// Function for creating BCSC sparse desc unstructured sparsity.
+        static sparse_desc bcsc(dim nnze, data_type index_type,
+                data_type pointer_type, const dims &block_dims,
+                bool allow_empty = false) {
+            return sparse_desc(dnnl_sparse_encoding_bcsc, {1, 0}, nnze,
+                    {index_type, pointer_type}, block_dims, {}, {},
+                    allow_empty);
+        }
+
+        static sparse_desc packed(dim nnze, bool allow_empty = false) {
+            return sparse_desc(dnnl_sparse_encoding_packed, {}, nnze, {}, {},
+                    {}, {}, allow_empty);
+        }
 
         /// Constructs a memory descriptor for a region inside an area
         /// described by this memory descriptor.
@@ -2805,9 +2878,9 @@ struct memory : public handle<dnnl_memory_t> {
         /// Returns the data type of the memory descriptor.
         ///
         /// @returns The data type.
-        memory::data_type get_data_type() const {
-            return query_data_type(query::data_type);
-        }
+        // memory::data_type get_data_type() const {
+        //     return query_data_type(query::data_type);
+        // }
 #endif
 
         /// Returns the format kind of the memory descriptor.
@@ -2820,6 +2893,30 @@ struct memory : public handle<dnnl_memory_t> {
             return status == dnnl_success
                     ? static_cast<dnnl::memory::format_kind>(format_kind)
                     : dnnl::memory::format_kind::undef;
+        }
+
+        /// Returns the format kind of the memory descriptor.
+        ///
+        /// @returns the format kind.
+        dnnl_sparse_encoding_t get_sparse_encoding() const {
+            dnnl_sparse_encoding_t sparse_encoding;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                get(), dnnl_query_sparse_encoding, &sparse_encoding);
+            return status == dnnl_success
+                    ? sparse_encoding
+                    : dnnl_sparse_encoding_undef;
+        }
+
+        /// Returns the data type of the memory descriptor.
+        ///
+        /// @returns The data type.
+        memory::data_type get_data_type() const {
+            dnnl_data_type_t data_type;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl_query_data_type, &data_type);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::data_type>(data_type)
+                    : dnnl::memory::data_type::undef;
         }
 
         /// Returns dimensions of the memory descriptor.
@@ -2844,6 +2941,18 @@ struct memory : public handle<dnnl_memory_t> {
         ///     including the padding area.
         size_t get_size() const { return dnnl_memory_desc_get_size(get()); }
 #endif
+
+        /// Returns the size of a values and metadata for a particular sparse
+        /// encoding.
+        ///
+        /// @param index Index that correspondes to values or metadata.
+        ///     Each sparse encoding defines index interpretation.
+        ///
+        /// @returns The number of bytes required for values or metadata for a
+        ///     particular sparse encoding described by a memory descriptor.
+        size_t get_size(int index) const {
+            return dnnl_memory_desc_get_size_sparse(get(), index);
+        }
 
         /// Checks whether the memory descriptor is zero (empty).
         /// @returns @c true if the memory descriptor describes an empty
@@ -3003,23 +3112,58 @@ struct memory : public handle<dnnl_memory_t> {
     ///       library owns the buffer.
     ///     - #DNNL_MEMORY_NONE to create dnnl::memory without an underlying
     ///       buffer.
-    memory(const desc &md, const engine &aengine, void *handle) {
-        dnnl_memory_t result;
-        error::wrap_c_api(
-                dnnl_memory_create(&result, md.get(), aengine.get(), handle),
-                "could not create a memory object");
-        reset(result);
-    }
+    // memory(const desc &md, const engine &aengine, void *handle) {
+    //     dnnl_memory_t result;
+    //     error::wrap_c_api(
+    //             dnnl_memory_create(&result, md.get(), aengine.get(), handle),
+    //             "could not create a memory object");
+    //     reset(result);
+    // }
 
     /// Constructs a memory object.
     ///
-    /// The underlying buffer for the memory will be allocated by the library.
+    /// The underlying buffer(s) for the memory will be allocated by the
+    /// library.
     ///
     /// @param md Memory descriptor.
     /// @param aengine Engine to store the data on.
-    memory(const desc &md, const engine &aengine)
-        : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
+    // memory(const desc &md, const engine &aengine)
+    //     : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
 #endif
+    memory(const desc &md, const engine &aengine) {
+        dnnl_status_t status;
+        dnnl_memory_t result;
+        const bool is_sparse_md = md.get_format_kind() == format_kind::sparsed;
+        if (is_sparse_md) {
+            // Deduce number of handles.
+            dim nhandles = 0;
+
+            switch (md.get_sparse_encoding()) {
+                case dnnl_sparse_encoding_csr:
+                case dnnl_sparse_encoding_csc:
+                case dnnl_sparse_encoding_bcsr:
+                case dnnl_sparse_encoding_bcsc: nhandles = 3; break;
+                case dnnl_sparse_encoding_packed: nhandles = 1; break;
+                default: nhandles = 0;
+            }
+            std::vector<void *> handles(nhandles, DNNL_MEMORY_ALLOCATE);
+            status = dnnl_memory_create_sparse(&result, md.get(), aengine.get(),
+                    (dim)handles.size(), handles.data());
+        } else {
+            status = dnnl_memory_create(
+                &result, md.get(), aengine.get(), DNNL_MEMORY_ALLOCATE);
+        }
+        error::wrap_c_api(status, "could not create a memory object");
+        reset(result);
+    }
+
+    memory(const desc &md, const engine &aengine, std::vector<void *> handles) {
+        dnnl_memory_t result;
+        dnnl_status_t status = dnnl_memory_create_sparse(&result, md.get(),
+                aengine.get(), (dim)handles.size(), handles.data());
+        error::wrap_c_api(status, "could not create a memory object");
+        reset(result);
+    }
 
     /// Returns the associated memory descriptor.
     desc get_desc() const {
@@ -3122,6 +3266,28 @@ struct memory : public handle<dnnl_memory_t> {
         return handle;
     }
 
+    // TODO: add documentation.
+    std::vector<void *> get_data_handles() const {
+        dim nhandles;
+        error::wrap_c_api(
+                dnnl_memory_get_data_handles(get(), &nhandles, nullptr),
+                "could not get a number of native handles from a memory "
+                "object");
+        std::vector<void *> handles(nhandles);
+        error::wrap_c_api(
+                dnnl_memory_get_data_handles(get(), &nhandles, handles.data()),
+                "could not get native handles from a memory object");
+        return handles;
+    }
+
+    // TODO: add documentation.
+    void set_data_handles(std::vector<void *> handles) {
+        dim nhandles = handles.size();
+        error::wrap_c_api(
+                dnnl_memory_set_data_handles(get(), nhandles, handles.data()),
+                "could not set native handles of a memory object");
+    }
+
     /// Sets the underlying memory buffer.
     ///
     /// @param handle Memory buffer to use. On the CPU engine or when USM is
@@ -3166,6 +3332,23 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_map_data(get(), &mapped_ptr),
                 "could not map memory object data");
         return static_cast<T *>(mapped_ptr);
+    }
+
+    // TODO: add documentation.
+    template <typename T = void>
+    T *map_data(int index) const {
+        void *mapped_ptr;
+        error::wrap_c_api(
+                dnnl_memory_map_data_sparse(get(), index, &mapped_ptr),
+                "could not map memory object data");
+        return static_cast<T *>(mapped_ptr);
+    }
+
+    // TODO: add documentation.
+    void unmap_data(int index, void *mapped_ptr) const {
+        error::wrap_c_api(
+                dnnl_memory_unmap_data_sparse(get(), index, mapped_ptr),
+                "could not unmap memory object data");
     }
 
     /// Unmaps a memory object and writes back any changes made to the

@@ -63,9 +63,16 @@ struct memory_desc_wrapper : public c_compatible {
     }
     bool is_sparse_desc() const { return format_kind() == format_kind::sparse; }
 
+    bool is_blocking_or_sparse_packed_desc() const {
+        return is_blocking_desc()
+                || (is_sparse_desc()
+                        && sparse_desc().encoding == sparse_encoding::packed);
+    }
+
     const blocking_desc_t &blocking_desc() const {
-        assert(is_blocking_desc());
-        return md_->format_desc.blocking;
+        assert(is_blocking_or_sparse_packed_desc());
+        if (!is_sparse_desc()) return md_->format_desc.blocking;
+        return sparse_desc().packed_desc;
     }
     const wino_desc_t &wino_desc() const {
         assert(is_wino_desc());
@@ -91,12 +98,24 @@ struct memory_desc_wrapper : public c_compatible {
         return sparse_desc().encoding;
     }
 
+#if 0
     dim_t nnz() const {
         assert(is_sparse_desc());
         return sparse_desc().nnz;
     }
+#endif
+
+    const data_type_t *metadata_types() const {
+        assert(is_sparse_desc());
+        return sparse_desc().metadata_types;
+    }
 
     const memory_extra_desc_t &extra() const { return md_->extra; }
+
+    const dim_t *entry_dims() const {
+        assert(is_sparse_desc());
+        return sparse_desc().entry_dims;
+    }
 
     /* some useful function */
 
@@ -209,6 +228,62 @@ struct memory_desc_wrapper : public c_compatible {
             return wino_desc().size;
         } else if (is_rnn_packed_desc()) {
             return rnn_packed_desc().size;
+        } else if (is_sparse_desc()) {
+            if (utils::one_of(sparse_desc().encoding, sparse_encoding::csr,
+                        sparse_encoding::csc, sparse_encoding::bcsr,
+                        sparse_encoding::bcsc)) {
+
+                const size_t nnze = sparse_desc().nnze;
+
+                const auto idx_dt = metadata_types()[0];
+                const auto ptr_dt = metadata_types()[1];
+
+                // Return size for values.
+                if (index == 0) {
+                    switch (sparse_desc().encoding) {
+                        case sparse_encoding::csr:
+                        case sparse_encoding::csc:
+                            return nnze * data_type_size();
+                        case sparse_encoding::bcsr:
+                        case sparse_encoding::bcsc:
+                            return nnze * entry_dims()[0] * entry_dims()[1]
+                                    * data_type_size();
+                        default: assert(!"unknown sparse encoding"); return 0;
+                    }
+                }
+
+                // Return size for indices.
+                if (index == 1) return nnze * types::data_type_size(idx_dt);
+                // Return size for pointers.
+                if (index == 2) {
+                    switch (sparse_desc().encoding) {
+                        case sparse_encoding::csr:
+                        case sparse_encoding::bcsr:
+                            return (dims()[0] + 1)
+                                    * types::data_type_size(ptr_dt);
+                        case sparse_encoding::csc:
+                        case sparse_encoding::bcsc:
+                            return (dims()[1] + 1)
+                                    * types::data_type_size(ptr_dt);
+                        default: assert(!"unknown sparse encoding"); return 0;
+                    }
+                }
+                return 0;
+            } else if (sparse_desc().encoding == sparse_encoding::packed) {
+                if (index != 0) return 0;
+                // Only  2D tensors are supported at this point.
+                assert(ndims() == 2);
+                // Only OI16i64o4i is supported at this point.
+                // assert(matches_tag(format_tag::OI16i64o4i)); - TODO: enable for sparse packed.
+                const size_t metadata = padded_dims()[0] * padded_dims()[1] / 64
+                        * sizeof(uint64_t);
+                return (padded_dims()[0] * padded_dims()[1] * data_type_size())
+                        + metadata + 1000;
+            } else {
+                printf("encoding:%d\n", (int)sparse_desc().encoding), fflush(0);
+                assert(!"unknown sparse encoding");
+                return 0;
+            }
         } else if (is_blocking_desc()) {
             if (offset0() != 0) return 0;
 
@@ -238,6 +313,7 @@ struct memory_desc_wrapper : public c_compatible {
                 data_size = utils::rnd_up(data_size, alignment_in_bytes);
             }
             return data_size + additional_buffer_size();
+#if 0
         } else if (is_sparse_desc()) {
             if (sparse_desc().encoding == sparse_encoding::csr) {
                 switch (index) {
@@ -259,6 +335,7 @@ struct memory_desc_wrapper : public c_compatible {
                 assert(!"unknown sparse encoding");
                 return 0;
             }
+#endif
         } else {
             assert(!"unknown format kind");
             return 0;
@@ -414,8 +491,14 @@ struct memory_desc_wrapper : public c_compatible {
      * an array \param pos. if \param is_pos_padded is true \param pos
      * represents the position in already padded area */
     dim_t off_v(const dims_t pos, bool is_pos_padded = false) const {
-        assert(is_blocking_desc());
-        const blocking_desc_t &blk = blocking_desc();
+        assert(is_blocking_or_sparse_packed_desc());
+
+        const blocking_desc_t &blk = [&]() {
+            if (is_blocking_desc())
+                return blocking_desc();
+            else
+                return sparse_desc().packed_desc;
+        }();
 
         dims_t pos_copy = {0};
         for (int d = 0; d < ndims(); ++d)
@@ -529,10 +612,17 @@ private:
 
     template <int ORIG_LEN, typename T, typename... Args>
     dim_t _blk_off(T xc, Args... args) const {
-        assert(is_blocking_desc());
+        assert(is_blocking_or_sparse_packed_desc());
         constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
-        return xc * blocking_desc().strides[dc]
-                + _blk_off<ORIG_LEN, Args...>(args...);
+
+        const blocking_desc_t &blk = [&]() {
+            if (is_blocking_desc())
+                return blocking_desc();
+            else
+                return sparse_desc().packed_desc;
+        }();
+
+        return xc * blk.strides[dc] + _blk_off<ORIG_LEN, Args...>(args...);
     }
 };
 

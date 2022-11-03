@@ -1115,10 +1115,27 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 
     if (!one_of(true, is_int8, is_bf16, is_f16, is_f32))
         return status::unimplemented;
+
+    jbgp.weights_compressed = false;
     if (is_int8) {
         jbgp.acc_dt = s32;
         jbgp.with_scales = true;
         jbgp.with_dst_scales = true;
+        jbgp.weights_compressed = weights_d.is_sparse_desc()
+                && weights_d.sparse_desc().encoding == sparse_encoding::packed;
+        // XXX: assumption on block size.
+        // TODO: generalize this.
+        if (jbgp.weights_compressed) {
+            jbgp.weights_compressed = true;
+            jbgp.weight_comp_bitmask_off = jbgp.ic * jbgp.oc;
+            int total_blocks = (jbgp.oc * jbgp.ic) / 4096;
+            jbgp.weights_starting_offset
+                    = ceil((float)total_blocks * 2 / 64.0) * 64;
+        }
+    } else if (is_bf16) {
+        jbgp.acc_dt = f32;
+    } else if (is_f32) {
+        jbgp.acc_dt = f32;
     } else
         jbgp.acc_dt = f32;
 
@@ -1163,7 +1180,10 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         if (jbgp.with_bias && bias_md.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
 
-        jbgp.is_wei_layout_any = weights_d.format_kind() == format_kind::any;
+        jbgp.is_wei_layout_any = (weights_d.format_kind() == format_kind::any)
+                || (weights_d.format_kind() == format_kind::sparse
+                        && weights_d.sparse_desc().encoding
+                                == sparse_encoding::packed);
 
         memory_desc_t want_wei_md = weights_md;
         jbgp.wei_tag = get_brgemm_ip_weights_tag(isa, jbgp, weights_md);

@@ -76,6 +76,39 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
         return memory_storage(index)->get_data_handle(handle);
     }
 
+    dnnl::impl::status_t get_data_handles(std::vector<void *> &handles) const {
+        std::vector<void *> handles_tmp(memory_storages_.size());
+        handles = std::vector<void *>(memory_storages_.size());
+        for (size_t i = 0; i < memory_storages_.size(); i++) {
+            CHECK(memory_storage(i)->get_data_handle(&handles_tmp[i]));
+        }
+        handles = std::move(handles_tmp);
+        return dnnl::impl::status::success;
+    }
+
+    dnnl::impl::status_t set_data_handles(
+            std::vector<void *> handles, dnnl_stream *stream) {
+        if (handles.size() != memory_storages_.size())
+            return dnnl::impl::status::invalid_arguments;
+
+        auto status = dnnl::impl::status::success;
+        std::vector<void *> current_handles(handles.size());
+
+        for (size_t i = 0; i < handles.size(); i++) {
+            memory_storage(i)->get_data_handle(&current_handles[i]);
+            status = memory_storage(i)->set_data_handle(handles[i]);
+            if (status != dnnl::impl::status::success) {
+                // Restore the changed handles.
+                for (size_t j = 0; j < i; j++) {
+                    CHECK(memory_storage(j)->set_data_handle(
+                            current_handles[j]));
+                }
+                break;
+            }
+        }
+        return status;
+    }
+
     /** sets data handle */
     dnnl::impl::status_t set_data_handle(void *handle, int index = 0, bool pads_zeroing = false);
 
