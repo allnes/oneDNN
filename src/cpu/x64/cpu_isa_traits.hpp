@@ -33,7 +33,7 @@
 //#define XBYAK_USE_MMAP_ALLOCATOR
 /* Use Xbyak's memfd-based allocation, if available */
 #define XBYAK_USE_MEMFD
-#ifndef DNNL_ENABLE_EXCEPTIONS
+#ifdef DNNL_XBYAK_NO_EXCEPTION
 #define XBYAK_NO_EXCEPTION
 #endif
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
