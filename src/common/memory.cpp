@@ -65,7 +65,7 @@ size_t memory_desc_map_size(const memory_desc_t *md, int index = 0) {
 
     memory_desc_t md_no_offset0 = *md;
     md_no_offset0.offset0 = 0;
-    return memory_desc_wrapper(md_no_offset0).size(index)
+    return memory_desc_wrapper(md_no_offset0).size()
             + md->offset0 * mdw.data_type_size();
 }
 } // namespace
@@ -130,105 +130,6 @@ status_t dnnl_memory::reset_memory_storage(
     }
 
     return status::success;
-}
-
-status_t dnnl_sparse_desc_init(sparse_desc_t *sparse_desc,
-        sparse_encoding_t encoding, int ndims_order, const dims_t dims_order,
-        dim_t nnze, int ntypes, const data_type_t *metadata_types,
-        int nentry_dims, const dim_t *entry_dims, int structure_ndims,
-        const dim_t *structure_dims, const dim_t *structure_nnz) {
-    if (!sparse_desc) return invalid_arguments;
-    if (ntypes > 0 && !metadata_types) return invalid_arguments;
-    if (nentry_dims > 0 && !entry_dims) return invalid_arguments;
-    if (structure_ndims > 0 && (!structure_dims || !structure_nnz))
-        return invalid_arguments;
-
-    // sparse descriptor is empty.
-    if (nnze == 0) {
-        (*sparse_desc) = sparse_desc_t();
-        return success;
-    }
-
-    // TODO: add more checks
-
-    auto sd = sparse_desc_t();
-    sd.encoding = encoding;
-    array_copy(sd.dims_order, dims_order, ndims_order);
-    sd.nnze = nnze;
-    array_copy(sd.metadata_types, metadata_types, ntypes);
-    array_copy(sd.entry_dims, entry_dims, nentry_dims);
-    if (structure_ndims > 0) {
-        sd.structure_ndims = structure_ndims;
-        array_copy(sd.structure_dims, structure_dims, structure_ndims);
-        array_copy(sd.structure_nnz, structure_nnz, structure_ndims);
-    }
-
-    *sparse_desc = sd;
-
-    return success;
-}
-
-dnnl_status_t dnnl_memory_desc_init_by_sparse_desc(memory_desc_t *memory_desc,
-        int ndims, const dims_t dims, data_type_t data_type,
-        const sparse_desc_t *sparse_desc) {
-
-    if (any_null(memory_desc, sparse_desc)) return invalid_arguments;
-    if (ndims == 0) {
-        *memory_desc = types::zero_md();
-        return success;
-    }
-
-    auto md = memory_desc_t();
-    md.ndims = ndims;
-    array_copy(md.dims, dims, ndims);
-    md.data_type = data_type;
-    array_copy(md.padded_dims, dims, ndims);
-    md.format_kind = format_kind::sparse;
-    md.format_desc.sparse_desc = *sparse_desc;
-
-    *memory_desc = md;
-
-    return success;
-}
-
-status_t dnnl_memory_create_sparse(dnnl_memory_t *memory,
-        const_dnnl_memory_desc_t md, dnnl_engine_t engine, dnnl_dim_t nhandles,
-        void **handles) {
-    assert(DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL);
-    assert(DNNL_GPU_RUNTIME != DNNL_RUNTIME_SYCL);
-    assert(DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL);
-
-    // TODO: consider combinin part of functionality with non-sparse
-    // counterpart above.
-    memory_desc_t z_md = types::zero_md();
-    if (md == nullptr) md = &z_md;
-
-    const auto mdw = memory_desc_wrapper(md);
-    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
-        return invalid_arguments;
-
-    std::vector<unsigned> flags(nhandles);
-    std::vector<void *> handles_(nhandles);
-    for (size_t i = 0; i < handles_.size(); i++) {
-        unsigned f = (handles[i] == DNNL_MEMORY_ALLOCATE)
-                ? memory_flags_t::alloc
-                : memory_flags_t::use_runtime_ptr;
-        void *handle_ptr
-                = (handles[i] == DNNL_MEMORY_ALLOCATE) ? nullptr : handles[i];
-        flags[i] = f;
-        handles_[i] = handle_ptr;
-    }
-
-    auto _memory = new memory_t(engine, md, flags, handles_);
-    if (_memory == nullptr) return out_of_memory;
-    for (size_t i = 0; i < handles_.size(); i++) {
-        if (_memory->memory_storage(i) == nullptr) {
-            delete _memory;
-            return out_of_memory;
-        }
-    }
-    *memory = _memory;
-    return success;
 }
 
 status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
@@ -328,49 +229,13 @@ status_t dnnl_memory_get_data_handle(const memory_t *memory, void **handle) {
 
 status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
     if (any_null(memory)) return invalid_arguments;
-    CHECK(memory->set_data_handle(handle, true));
+    CHECK(memory->set_data_handle(handle, 0, true));
     return status::success;
-}
-
-status_t dnnl_memory_get_data_handles(
-        const_dnnl_memory_t memory, dnnl_dim_t *nhandles, void **handles) {
-    if (!nhandles) return invalid_arguments;
-
-    // User queries number of handles without a valid memory object.
-    if (!memory) {
-        (*nhandles) = 0;
-        return success;
-    }
-
-    std::vector<void *> queried_handles;
-    // User queries number of handles with a valid memory object.
-    if (!handles) {
-        memory->get_data_handles(queried_handles);
-        (*nhandles) = queried_handles.size();
-        return success;
-    }
-
-    // User queries the handles.
-    memory->get_data_handles(queried_handles);
-    if ((*nhandles) != (int)queried_handles.size()) return invalid_arguments;
-    for (size_t i = 0; i < queried_handles.size(); i++) {
-        handles[i] = queried_handles[i];
-    }
-
-    return success;
-}
-
-status_t dnnl_memory_set_data_handles(
-        dnnl_memory_t memory, dnnl_dim_t nhandles, void **handles) {
-    if (any_null(memory, handles) || nhandles == 0) return invalid_arguments;
-    if ((int)memory->get_num_handles() != nhandles) return invalid_arguments;
-    std::vector<void *> handles_vec(handles, handles + nhandles);
-    return memory->set_data_handles(std::move(handles_vec), nullptr);
 }
 
 status_t dnnl_memory_set_data_handle_no_pads_proc(memory_t *memory, void *handle) {
     if (any_null(memory)) return invalid_arguments;
-    CHECK(memory->set_data_handle(handle, false));
+    CHECK(memory->set_data_handle(handle, 0, false));
     return status::success;
 }
 
@@ -428,35 +293,12 @@ status_t dnnl_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {
     return dnnl_memory_unmap_data_v2(memory, mapped_ptr, 0);
 }
 
-status_t dnnl_memory_map_data_sparse(
-        const_dnnl_memory_t memory, int index, void **mapped_ptr) {
-    bool args_ok = !any_null(memory, mapped_ptr);
-    if (!args_ok) return invalid_arguments;
-    // TODO: add index check.
-
-    const memory_desc_t *md = memory->md();
-    // See caveats in the comment to `memory_desc_map_size()` function.
-    const size_t map_size = memory_desc_map_size(md, index);
-
-    if (map_size == 0) {
-        *mapped_ptr = nullptr;
-        return success;
-    } else if (map_size == DNNL_RUNTIME_SIZE_VAL) {
-        return invalid_arguments;
-    }
-
-    return memory->memory_storage(index)->map_data(
-            mapped_ptr, nullptr, map_size);
-
-    return unimplemented;
-}
-
 status_t dnnl_memory_unmap_data_sparse(
         const_dnnl_memory_t memory, int index, void *mapped_ptr) {
     bool args_ok = !any_null(memory);
     if (!args_ok) return invalid_arguments;
 
-    return memory->memory_storage(index)->unmap_data(mapped_ptr, nullptr);
+    return memory->memory_storage()->unmap_data(mapped_ptr, nullptr);
 
     return unimplemented;
 }

@@ -2038,18 +2038,11 @@ typedef const struct dnnl_memory_desc *const_dnnl_memory_desc_t;
 typedef enum {
     dnnl_sparse_encoding_undef = 0,
     dnnl_sparse_encoding_any,
-    dnnl_sparse_encoding_csr,
-    dnnl_sparse_encoding_csc,
-    dnnl_sparse_encoding_bcsr,
-    dnnl_sparse_encoding_bcsc,
     dnnl_sparse_encoding_packed,
 } dnnl_sparse_encoding_t;
 
-/// Maximum number of types for metadata.
-#define DNNL_MAX_METADATA_TYPES 12
-
-typedef struct dnnl_sparse_desc *dnnl_sparse_desc_t;
-typedef const struct dnnl_sparse_desc *const_dnnl_sparse_desc_t;
+/* typedef struct dnnl_sparse_desc *dnnl_sparse_desc_t; */
+/* typedef const struct dnnl_sparse_desc *const_dnnl_sparse_desc_t; */
 
 /// Flags for memory special features
 typedef enum {

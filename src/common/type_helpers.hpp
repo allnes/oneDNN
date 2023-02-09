@@ -239,29 +239,10 @@ inline bool sparse_desc_is_equal(
 
     for (int i = 0; i < sparse_desc_t::max_metadata_types; i++)
         ok = ok && lhs.metadata_types[i] == rhs.metadata_types[i];
-#endif
-    bool ok = lhs.encoding == rhs.encoding && lhs.nnze == rhs.nnze
-            && lhs.structure_ndims == rhs.structure_ndims;
-    if (!ok) return false;
 
-    for (int i = 0; i < DNNL_MAX_NDIMS; i++)
-        ok = ok && lhs.dims_order[i] == rhs.dims_order[i];
-    if (!ok) return false;
-
-    for (int i = 0; i < DNNL_MAX_METADATA_TYPES; i++)
-        ok = ok && lhs.metadata_types[i] == rhs.metadata_types[i];
-    if (!ok) return false;
-
-    for (int i = 0; i < 2; i++)
-        ok = ok && lhs.entry_dims[i] == rhs.entry_dims[i];
-    if (!ok) return false;
-
-    if (lhs.structure_ndims != 0) {
-        for (int i = 0; i < 2; i++)
-            ok = ok && lhs.structure_dims[i] == rhs.structure_dims[i]
-                    && lhs.structure_nnz[i] == rhs.structure_nnz[i];
-    }
     return ok;
+#endif
+    return lhs.encoding == rhs.encoding;
 }
 
 inline memory_desc_t zero_md() {

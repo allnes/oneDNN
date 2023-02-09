@@ -28,9 +28,16 @@
 namespace dnnl {
 namespace impl {
 
-status_t fill_blocked(memory_desc_t &md, std::vector<int> &perm,
-        std::vector<int> &inner_blks,
-        std::vector<int> &inner_idxs);
+status_t fill_blocked(memory_desc_t &md,
+                      std::vector<int> &perm,
+                      std::vector<int> &inner_blks,
+                      std::vector<int> &inner_idxs);
+
+status_t fill_blocked(memory_desc_t &md,
+                      std::vector<dim_t> &perm,
+                      std::vector<dim_t> &inner_blks,
+                      std::vector<dim_t> &inner_idxs);
+
 
 /** thin wrapper class over \struct memory_desc_t which allows easy
  * manipulations with underlying C structure, which is taken by reference */
@@ -93,28 +100,17 @@ struct memory_desc_wrapper : public c_compatible {
         return sparse_desc().metadata_types[idx];
     }
 
-    sparse_encoding_t encoding() const {
-        assert(is_sparse_desc());
-        return sparse_desc().encoding;
-    }
-
 #if 0
     dim_t nnz() const {
         assert(is_sparse_desc());
         return sparse_desc().nnz;
     }
 #endif
-
-    const data_type_t *metadata_types() const {
-        assert(is_sparse_desc());
-        return sparse_desc().metadata_types;
-    }
-
     const memory_extra_desc_t &extra() const { return md_->extra; }
 
-    const dim_t *entry_dims() const {
+    sparse_encoding_t encoding() const {
         assert(is_sparse_desc());
-        return sparse_desc().entry_dims;
+        return sparse_desc().encoding;
     }
 
     /* some useful function */
@@ -229,58 +225,19 @@ struct memory_desc_wrapper : public c_compatible {
         } else if (is_rnn_packed_desc()) {
             return rnn_packed_desc().size;
         } else if (is_sparse_desc()) {
-            if (utils::one_of(sparse_desc().encoding, sparse_encoding::csr,
-                        sparse_encoding::csc, sparse_encoding::bcsr,
-                        sparse_encoding::bcsc)) {
-
-                const size_t nnze = sparse_desc().nnze;
-
-                const auto idx_dt = metadata_types()[0];
-                const auto ptr_dt = metadata_types()[1];
-
-                // Return size for values.
-                if (index == 0) {
-                    switch (sparse_desc().encoding) {
-                        case sparse_encoding::csr:
-                        case sparse_encoding::csc:
-                            return nnze * data_type_size();
-                        case sparse_encoding::bcsr:
-                        case sparse_encoding::bcsc:
-                            return nnze * entry_dims()[0] * entry_dims()[1]
-                                    * data_type_size();
-                        default: assert(!"unknown sparse encoding"); return 0;
-                    }
-                }
-
-                // Return size for indices.
-                if (index == 1) return nnze * types::data_type_size(idx_dt);
-                // Return size for pointers.
-                if (index == 2) {
-                    switch (sparse_desc().encoding) {
-                        case sparse_encoding::csr:
-                        case sparse_encoding::bcsr:
-                            return (dims()[0] + 1)
-                                    * types::data_type_size(ptr_dt);
-                        case sparse_encoding::csc:
-                        case sparse_encoding::bcsc:
-                            return (dims()[1] + 1)
-                                    * types::data_type_size(ptr_dt);
-                        default: assert(!"unknown sparse encoding"); return 0;
-                    }
-                }
-                return 0;
-            } else if (sparse_desc().encoding == sparse_encoding::packed) {
-                if (index != 0) return 0;
+            if (sparse_desc().encoding == sparse_encoding::packed) {
                 // Only  2D tensors are supported at this point.
                 assert(ndims() == 2);
                 // Only OI16i64o4i is supported at this point.
                 // assert(matches_tag(format_tag::OI16i64o4i)); - TODO: enable for sparse packed.
                 const size_t metadata = padded_dims()[0] * padded_dims()[1] / 64
                         * sizeof(uint64_t);
-                return (padded_dims()[0] * padded_dims()[1] * data_type_size())
+                size_t comp_tile_data_size = ceil(static_cast<float>(padded_dims()[0] * padded_dims()[1]) / (64 * 64 * 32)) * 64;
+                return comp_tile_data_size + (padded_dims()[0] * padded_dims()[1] * data_type_size())
                         + metadata + 1000;
+                        // todo: [av] why 1000?
             } else {
-                printf("encoding:%d\n", (int)sparse_desc().encoding), fflush(0);
+                printf("encoding:%d\n", (int)sparse_desc().encoding), fflush(stdout);
                 assert(!"unknown sparse encoding");
                 return 0;
             }
