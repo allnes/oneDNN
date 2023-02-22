@@ -57,7 +57,8 @@
 #endif
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
-#include "tbb/version.h"
+// #include "tbb/version.h"
+#include "tbb/tbb_stddef.h" // conventional tbb does not have version.h header file
 #if defined(TBB_INTERFACE_VERSION) && (TBB_INTERFACE_VERSION >= 12060)
 #include "tbb/global_control.h"
 #define DNNL_TBB_NEED_EXPLICIT_FINALIZE
