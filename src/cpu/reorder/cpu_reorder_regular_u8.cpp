@@ -42,7 +42,7 @@ const impl_list_map_t &regular_u8_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
 
             // Allow direct-copy primitives for non-intel compilers, but with a lower priority than the jitted impl
             REG_FAST_DIRECT_COPY_AFTER_JIT(u8, f32)

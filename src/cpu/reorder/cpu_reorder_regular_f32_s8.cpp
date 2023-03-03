@@ -41,7 +41,7 @@ const impl_list_map_t &regular_f32_s8_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, s8, nChw16c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, s8, OIhw4i16o4i))

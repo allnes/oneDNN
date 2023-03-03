@@ -31,7 +31,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
             REG_SR(f32, any, f32, any, fmt_order_any, spec_reference)
 
             nullptr,
@@ -42,7 +42,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCw16c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCw8c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCw4c))
@@ -73,7 +73,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nChw16c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nChw8c))
@@ -121,7 +121,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCdhw16c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCdhw8c))
@@ -169,7 +169,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
+            // DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t)) // TODO: Fix seg. fault and loop for mac m1
 
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIdhw4i4o))
