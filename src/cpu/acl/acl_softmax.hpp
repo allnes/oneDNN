@@ -149,7 +149,7 @@ struct acl_softmax_fwd_t : public primitive_t {
                     // Using threads within ACL adds another constant overhead
                     acl_ref_performance_diff += 17;
                 }
-                if (acl_ref_performance_diff > 0) return status::unimplemented;
+//                if (acl_ref_performance_diff > 0) return status::unimplemented;
 
                 // If the inner size is 1, we can get rid of the dimension.
                 // This stops ACL doing a unnecessary permute
@@ -173,7 +173,7 @@ struct acl_softmax_fwd_t : public primitive_t {
                     acl_ref_performance_diff += 17;
                 }
 
-                if (acl_ref_performance_diff > 0) return status::unimplemented;
+//                if (acl_ref_performance_diff > 0) return status::unimplemented;
 
                 // Irrespective of the input dimensions, we construct a tensor
                 // with dimensions such that softmax can be applied over the
