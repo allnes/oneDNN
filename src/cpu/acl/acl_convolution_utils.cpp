@@ -360,8 +360,7 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
     if (one_of(true, src_md.dims[2] < 32, // ih
                 src_md.dims[3] < 32, // iw
                 src_md.dims[1] < 64, // ic
-                dst_md.dims[1] < 64, // oc
-                dnnl_get_max_threads() > 28)
+                dst_md.dims[1] < 64) // oc
             && cd.alg_kind == alg_kind::convolution_auto) {
         return status::unimplemented;
     }
