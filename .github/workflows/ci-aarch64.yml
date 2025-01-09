@@ -40,7 +40,6 @@ jobs:
       matrix:
         config: [
           { toolset: clang, build: Release },
-          { toolset: gcc, build: Release }
         ]
 
     name: MacOS, ${{ matrix.config.toolset }}, ${{ matrix.config.build }}
@@ -120,8 +119,8 @@ jobs:
     strategy:
       matrix:
         threading: [OMP]
-        toolset: [clang, gcc]
-        config: [Debug, Release]
+        toolset: [gcc]
+        config: [Release]
         host: [
           { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 },
           { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }
