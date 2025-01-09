@@ -39,7 +39,7 @@ fi
 set -x
 cmake \
     -Bbuild -S. \
-    -DDNNL_AARCH64_USE_ACL=ON \
+    -DDNNL_USE_ACL=ON=ON \
     -DONEDNN_BUILD_GRAPH=0 \
     -DDNNL_CPU_RUNTIME=$ONEDNN_THREADING \
     -DONEDNN_WERROR=OFF \
